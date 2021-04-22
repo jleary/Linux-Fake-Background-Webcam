@@ -143,15 +143,15 @@ The only downside is that the  ability to change background and foreground image
 has some limitations.
 
 ## Usage
-###OpenCV Backend
+### OpenCV Backend
 On resource limited systems, the OpenCV backend may perform better.  In order to use this backend, execute 
 ``fakecam/fake.py`` with the ``--opencv`` flag.  Please note that you will need to be out of the frame for at least
 the first second of runtime as OpenCV's background detection builds a baseline of your background.  Also, please note
 that this method is highly sensitive to motion.  You may want to consider using the ``--no-background`` flag
 (which will blur the background) as that may blend better than using an image background.
 
-###BodyPix/Tensorflow Backend
-If you are using a system that is capable of running tensorflow, then this backwill work better for you.
+### BodyPix/Tensorflow Backend
+If you are using a system that is capable of running tensorflow, then this backend will work better for you.
 Assuming you are not using the Docker version, overriding the ports settings, please also make sure that your
 TCP port ``127.0.0.1:9000`` is free, as we will be using it.
 
