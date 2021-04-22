@@ -22,6 +22,8 @@ import threading
 
 from akvcam import AkvCameraWriter
 
+import numpy # New Requirement for OpenCV Support
+
 def findFile(pattern, path):
     for root, _, files in os.walk(path):
         for name in files:
@@ -50,6 +52,14 @@ class RealCam:
         self._set_frame_dimensions(frame_width, frame_height)
         self._set_frame_rate(frame_rate)
         self.get_camera_values("new")
+
+        self.backSub = cv2.createBackgroundSubtractorMOG2()
+        for i in range(0,60):
+            _, bg = self.cam.read()
+            #bg = cv2.GaussianBlur(bg,(5,5),0)
+            bg = cv2.GaussianBlur(bg,(15,15),0)
+            #bg = cv2.blur(bg,(5,5),0)
+            self.backSub.apply(bg)
 
     def get_camera_values(self, status):
         print(
@@ -82,6 +92,9 @@ class RealCam:
         self.cam.set(cv2.CAP_PROP_FPS, fps)
         if fps != self.get_frame_rate():
             _log_camera_property_not_set(cv2.CAP_PROP_FPS, fps)
+
+    def get_backsub(self):
+        return self.backSub
 
     def get_codec(self):
         return int(self.cam.get(cv2.CAP_PROP_FOURCC))
@@ -139,7 +152,8 @@ class FakeCam:
         foreground_mask_image: str,
         webcam_path: str,
         v4l2loopback_path: str,
-        use_akvcam: bool
+        use_akvcam: bool,
+        use_opencv: bool,
     ) -> None:
         self.no_background = no_background
         self.use_foreground = use_foreground
@@ -156,6 +170,7 @@ class FakeCam:
         self.width = self.real_cam.get_frame_width()
         self.height = self.real_cam.get_frame_height()
         self.use_akvcam = use_akvcam
+        self.use_opencv = use_opencv
         if not use_akvcam:
             self.fake_cam = pyfakewebcam.FakeWebcam(v4l2loopback_path, self.width, self.height)
         else:
@@ -163,15 +178,18 @@ class FakeCam:
         self.foreground_mask = None
         self.inverted_foreground_mask = None
         self.session = requests.Session()
-        if bodypix_url.startswith('/'):
-            print("Looks like you want to use a unix socket")
-            # self.session = requests_unixsocket.Session()
-            self.bodypix_url = "http+unix:/" + bodypix_url
-            self.socket = bodypix_url
-            requests_unixsocket.monkeypatch()
+        if use_opencv == None:
+            if bodypix_url.startswith('/'):
+                print("Looks like you want to use a unix socket")
+                # self.session = requests_unixsocket.Session()
+                self.bodypix_url = "http+unix:/" + bodypix_url
+                self.socket = bodypix_url
+                requests_unixsocket.monkeypatch()
         else:
             self.bodypix_url = bodypix_url
             self.socket = ""
+        #If the session can't connect, set the session to None so that _get_mask will fall back
+        #on to openCV
             # self.session = requests.Session()
         self.images: Dict[str, Any] = {}
         self.image_lock = asyncio.Lock()
@@ -181,19 +199,52 @@ class FakeCam:
                            fy=self.scale_factor)
         _, data = cv2.imencode(".png", frame)
         #print("Posting to " + self.bodypix_url)
-        async with session.post(
-            url=self.bodypix_url, data=data.tobytes(),
-            headers={"Content-Type": "application/octet-stream"}
-        ) as r:
-            mask = np.frombuffer(await r.read(), dtype=np.uint8)
+        if self.use_opencv is False:
+            async with session.post(
+                url=self.bodypix_url, data=data.tobytes(),
+                headers={"Content-Type": "application/octet-stream"}
+            ) as r:
+                mask = np.frombuffer(await r.read(), dtype=np.uint8)
+                mask = mask.reshape((frame.shape[0], frame.shape[1]))
+                mask = cv2.resize(
+                    mask, (0, 0), fx=1 / self.scale_factor,
+                    fy=1 / self.scale_factor, interpolation=cv2.INTER_NEAREST
+                )
+                mask = cv2.dilate(mask, np.ones((10, 10), np.uint8), iterations=1)
+                mask = cv2.blur(mask.astype(float), (30, 30))
+        else:
+            backSub = self.real_cam.get_backsub()
+            #Blur the frame (just like the backSub)
+            frame = cv2.GaussianBlur(frame,(15,15),0)
+            #frame = cv2.blur(frame,(5,5),0)
+            mask = backSub.apply(frame,0,0)
             mask = mask.reshape((frame.shape[0], frame.shape[1]))
+            _,mask = cv2.threshold(mask,90,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+
+            contours, hierarchy = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
+            try:
+                contour = max(contours, key=cv2.contourArea)
+                mask = np.zeros((frame.shape[0],frame.shape[1]))
+                cv2.drawContours(mask, [contour], -1,(255,255,255),thickness=-1)
+            except:
+                pass
+            #mask = cv2.GaussianBlur(mask,(15,15),0)
+            #mask = cv2.blur(mask,(15,15),0)
+
+
             mask = cv2.resize(
                 mask, (0, 0), fx=1 / self.scale_factor,
                 fy=1 / self.scale_factor, interpolation=cv2.INTER_NEAREST
             )
-            mask = cv2.dilate(mask, np.ones((10, 10), np.uint8), iterations=1)
-            mask = cv2.blur(mask.astype(float), (30, 30))
-            return mask
+            mask = -mask
+
+            #If the mask lets more than 40% of the image through, let nothing through
+            #if((numpy.sum(mask)/np.size(mask))> .4):
+            #    mask = 0
+            #If I were to do contour detection, it would be here:
+            #else:
+            #    pass
+        return mask
 
     def shift_image(self, img, dx, dy):
         img = np.roll(img, dy, axis=0)
@@ -414,6 +465,8 @@ def parse_args():
                         help="Foreground mask image path")
     parser.add_argument("--hologram", action="store_true",
                         help="Add a hologram effect")
+    parser.add_argument("--opencv", action="store_true",
+                        help="Use builtin openCV background subtraction instead of Node.js.\nIn order for OpenCV to determine the background, you must remain out of frame for the first second after starting fake.py")
     return parser.parse_args()
 
 
@@ -453,7 +506,8 @@ def main():
         foreground_mask_image=findFile(args.foreground_mask_image, args.image_folder),
         webcam_path=args.webcam_path,
         v4l2loopback_path=args.v4l2loopback_path,
-        use_akvcam=args.akvcam)
+        use_akvcam=args.akvcam,
+        use_opencv=args.opencv)
     loop = asyncio.get_event_loop()
     signal.signal(signal.SIGINT, partial(sigint_handler, loop, cam))
     signal.signal(signal.SIGQUIT, partial(sigquit_handler, loop, cam))
