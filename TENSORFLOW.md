@@ -19,6 +19,12 @@ Install Bazelisk
 
     go get github.com/bazelbuild/bazelisk
 
+Add the ``GOPATH`` to your path.
+
+If `which bazel` does not return a path, create a bazel soft link
+
+    ln -s $GOPATH/bin/bazelisk $GOPATH/bin/bazel
+
 Basically Tensorflow require Bazel as the build system. There are multiple
 versions of Bazel which are not compatible to each other. The easiest way to
 launch Bazel is to use Bazelisk.

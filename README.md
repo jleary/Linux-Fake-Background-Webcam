@@ -125,8 +125,8 @@ needed for Debian Buster.
 configuration files yourself.
 
 ### Node.js
-You need to have Node.js. Node.js version 12 is known to work. To install
-Node.js, please follow the instructions at
+You need to have Node.js if you plan on using the tensorflow/bodypix back end.
+Node.js version 12 is known to work. To install Node.js, please follow the instructions at
 [NodeSource](https://github.com/nodesource/distributions/blob/master/README.md).
 
 ## Installation
@@ -143,6 +143,15 @@ The only downside is that the  ability to change background and foreground image
 has some limitations.
 
 ## Usage
+###OpenCV Backend
+On resource limited systems, the OpenCV backend may perform better.  In order to use this backend, execute 
+``fakecam/fake.py`` with the ``--opencv`` flag.  Please note that you will need to be out of the frame for at least
+the first second of runtime as OpenCV's background detection builds a baseline of your background.  Also, please note
+that this method is highly sensitive to motion.  You may want to consider using the ``--no-background`` flag
+(which will blur the background) as that may blend better than using an image background.
+
+###BodyPix/Tensorflow Backend
+If you are using a system that is capable of running tensorflow, then this backwill work better for you.
 Assuming you are not using the Docker version, overriding the ports settings, please also make sure that your
 TCP port ``127.0.0.1:9000`` is free, as we will be using it.
 
@@ -177,7 +186,7 @@ If you are not running fake.py under Docker, it supports the following options:
                 [-B BODYPIX_URL] [-w WEBCAM_PATH] [-v V4L2LOOPBACK_PATH]
                 [--akvcam] [-i IMAGE_FOLDER] [-b BACKGROUND_IMAGE]
                 [--tile-background] [--no-foreground] [-f FOREGROUND_IMAGE]
-                [-m FOREGROUND_MASK_IMAGE] [--hologram]
+                [-m FOREGROUND_MASK_IMAGE] [--hologram][--opencv]
 
     Faking your webcam background under GNU/Linux. Please make sure your bodypix
     network is running. For more information, please refer to:
