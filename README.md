@@ -248,7 +248,10 @@ the performance. For me, it improved the framerate.
 In order to compile your own Tensorflow C library, please follow the instruction
 at [TENSORFLOW.md](TENSORFLOW.md)
 
-## License
+## License 
+
+    OpenCV LFBW Backend
+    Copyright (C) 2021  John D. Leary Jr.
 
     Linux Fake Background Webcam
     Copyright (C) 2020  Fufu Fang
@@ -266,11 +269,12 @@ at [TENSORFLOW.md](TENSORFLOW.md)
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+
 Please note that Benjamen Elder's
 [blog post](https://elder.dev/posts/open-source-virtual-background/)
 is licensed under CC BY 4.0 (see the bottom of that webpage). According to
 [FSF](https://www.fsf.org/blogs/licensing/cc-by-4-0-and-cc-by-sa-4-0-added-to-our-list-of-free-licenses),
 CC BY 4.0 is a noncopyleft license that is compatible with the GNU General
-Public License version 3.0 (GPLv3), meaning I can adapt a CC BY 4.0
+Public License version 3.0 (GPLv3), meaning one can adapt a CC BY 4.0
 licensed work, forming a larger work, then release it under the terms
 of GPLv3.
